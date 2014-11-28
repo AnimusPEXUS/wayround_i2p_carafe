@@ -48,25 +48,75 @@ class CarafeIterableIterator:
         return
 
 
+class ResponseStartWrapper:
+
+    """
+    Wrapper for response_start function provided by WSGI server
+
+    It transparantly converts strs to bytes
+    """
+
+    def __init__(self, response_start, output_encoding='utf-8'):
+        self._response_start = response_start
+        self._output_encoding = output_encoding
+        return
+
+    def __call__(status, response_headers, exc_info=None):
+
+        if isinstance(status, str):
+            status = bytes(status, self._output_encoding)
+
+        for i in range(len(response_headers)):
+
+            iv = response_headers[i]
+
+            iv0t = type(iv[0])
+            iv1t = type(iv[1])
+
+            if iv0t == str or iv1t == str:
+                iv0 = iv[0]
+                iv1 = iv[1]
+
+                if iv0t == str:
+                    iv0 = bytes(iv0, self._output_encoding)
+
+                if iv1t == str:
+                    iv1 = bytes(iv1, self._output_encoding)
+
+                response_headers[i] = iv0, iv1
+
+        return self._response_start(status, response_headers, exc_info)
+
+
 class Carafe:
 
     def __init__(self, carafe_app, output_encoding='utf-8'):
         """
         carafe_app - must be callable which has
-            (wsgi_environment, response_start) parameters. They are passed
-            strictly from wsgi server. You can use helpers in this module to
-            simplify those parameters handling.
-            carafe_app must return bytes, string, list of bytes or strings, or
+            (wsgi_environment, response_start) parameters.
+
+            wsgi_environment - is passed strictly from wsgi server.
+                You can use helpers in this module to
+                simplify wsgi_environment handling.
+
+            response_start - is wrapped with special class, which, when called,
+                converts strs parameters to bytes
+
+            carafe_app must return bytes, str, list of bytes or strs, or
             iterable. if iterable is returned, it is converted with other
-            internal iterable which is converts returned strings into bytes.
+            internal iterable which is converts returned strs into bytes.
         """
         self.carafe_app = carafe_app
         self.output_encoding = output_encoding
         return
 
-    def __call__(wsgi_environment, response_start):
+    def __call__(self, wsgi_environment, response_start):
 
-        res = self._carafe_app(wsgi_environment, response_start)
+        res = self.carafe_app(
+            wsgi_environment,
+            ResponseStartWrapper(response_start)
+            )
+
         res_t = type(res)
 
         ret = None
