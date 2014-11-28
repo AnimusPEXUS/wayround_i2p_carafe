@@ -1,0 +1,9 @@
+/log
+/html
+/*.egg-info
+*~
+*.pyc
+*.pyo
+#*#
+/dist
+/MANIFEST
