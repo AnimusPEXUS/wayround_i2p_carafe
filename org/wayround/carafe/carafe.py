@@ -62,31 +62,6 @@ class ResponseStartWrapper:
         return
 
     def __call__(self, status, response_headers, exc_info=None):
-
-        # if isinstance(status, str):
-            #status = bytes(status, self._output_encoding)
-
-        #print('response_headers: {}'.format(response_headers))
-        # for i in range(len(response_headers)):
-
-         #   iv = response_headers[i]
-            #print('iv: {}'.format(iv))
-
-          #  iv0t = type(iv[0])
-           # iv1t = type(iv[1])
-
-           # if iv0t == str or iv1t == str:
-           #     iv0 = iv[0]
-           #     iv1 = iv[1]
-
-           #     if iv0t == str:
-           #         iv0 = bytes(iv0, self._output_encoding)
-
-           #     if iv1t == str:
-           #         iv1 = bytes(iv1, self._output_encoding)
-
-            #    response_headers[i] = iv0, iv1
-
         return ResponseStartResultWrapper(
             self._response_start(status, response_headers, exc_info),
             self._output_encoding
@@ -101,6 +76,7 @@ class ResponseStartResultWrapper:
         return
 
     def __call__(self, data):
+        raise Exception("This data return method is deprecated. Don't use it!")
         if isinstance(data, str):
             data = bytes(data, self._output_encoding)
         return self._response_start_result
@@ -130,12 +106,12 @@ class Carafe:
 
     def __call__(self, wsgi_environment, response_start):
 
-        # res = self.carafe_app(
-        #    wsgi_environment,
-        #    ResponseStartWrapper(response_start)
-        #    )
+        res = self.carafe_app(
+            wsgi_environment,
+            ResponseStartWrapper(response_start)
+            )
 
-        res = self.carafe_app(wsgi_environment, response_start)
+        # res = self.carafe_app(wsgi_environment, response_start)
 
         res_t = type(res)
 
