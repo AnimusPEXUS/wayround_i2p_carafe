@@ -61,14 +61,16 @@ class ResponseStartWrapper:
         self._output_encoding = output_encoding
         return
 
-    def __call__(status, response_headers, exc_info=None):
+    def __call__(self, status, response_headers, exc_info=None):
 
-        if isinstance(status, str):
-            status = bytes(status, self._output_encoding)
+        # if isinstance(status, str):
+            #status = bytes(status, self._output_encoding)
 
+        #print('response_headers: {}'.format(response_headers))
         for i in range(len(response_headers)):
 
             iv = response_headers[i]
+            #print('iv: {}'.format(iv))
 
             iv0t = type(iv[0])
             iv1t = type(iv[1])
@@ -112,10 +114,12 @@ class Carafe:
 
     def __call__(self, wsgi_environment, response_start):
 
-        res = self.carafe_app(
-            wsgi_environment,
-            ResponseStartWrapper(response_start)
-            )
+        # res = self.carafe_app(
+        #    wsgi_environment,
+        #    ResponseStartWrapper(response_start)
+        #    )
+
+        res = self.carafe_app(wsgi_environment, response_start)
 
         res_t = type(res)
 
