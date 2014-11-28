@@ -5,6 +5,8 @@ I was mutch disapointed by BottlePy: Bottle class instances are nailed to
 module. So I writed this module
 """
 
+import logging
+
 
 class CarafeIterableIterator:
 
@@ -79,7 +81,7 @@ class ResponseStartResultWrapper:
         raise Exception("This data return method is deprecated. Don't use it!")
         if isinstance(data, str):
             data = bytes(data, self._output_encoding)
-        return self._response_start_result
+        return self._response_start_result(data)
 
 
 class Carafe:
@@ -94,7 +96,7 @@ class Carafe:
                 simplify wsgi_environment handling.
 
             response_start - is wrapped with special class, which, when called,
-                converts strs parameters to bytes
+                raises exception as deprecation mesure
 
             carafe_app must return bytes, str, list of bytes or strs, or
             iterable. if iterable is returned, it is converted with other
@@ -106,50 +108,56 @@ class Carafe:
 
     def __call__(self, wsgi_environment, response_start):
 
-        res = self.carafe_app(
-            wsgi_environment,
-            ResponseStartWrapper(response_start)
-            )
-
-        # res = self.carafe_app(wsgi_environment, response_start)
-
-        res_t = type(res)
-
         ret = None
 
-        if res_t == bytes:
-            ret = [res]
+        try:
+            res = self.carafe_app(
+                wsgi_environment,
+                ResponseStartWrapper(response_start)
+                )
 
-        elif res_t == str:
-            ret = [bytes(res, self.output_encoding)]
-
-        elif res_t == list:
-            ret = []
-            for i in res:
-                i_t = type(i)
-                if i_t == bytes:
-                    ret.append(i)
-
-                elif i_t == str:
-                    ret.append(bytes(i, self.output_encoding))
-
-                else:
-                    raise ValueError(
-                        "if list is returned it bust contain strs or bytes"
-                        )
-        elif hasattr(res, '__iter__'):
-            if not callable(res):
-                raise ValueError("invalid iterator returned")
-
-            if hasattr(res, 'stop'):
-                if not callable(getattr(res, 'stop')):
-                    raise Exception(
-                        "returned iteratable has invalid 'stop' method"
-                        )
-
-            ret = CarafeIterableIterator(res_iter, self.output_encoding)
-
+        except Exception as e:
+            # TODO: check status correctness
+            response_start('500 Error', [], e)
+            ret = [b'Internal Server Error']
+            logging.exception("Error calling `{}'".format(self.carafe_app))
         else:
-            raise TypeError("some invalid data type returned")
+
+            res_t = type(res)
+
+            if res_t == bytes:
+                ret = [res]
+
+            elif res_t == str:
+                ret = [bytes(res, self.output_encoding)]
+
+            elif res_t == list:
+                ret = []
+                for i in res:
+                    i_t = type(i)
+                    if i_t == bytes:
+                        ret.append(i)
+
+                    elif i_t == str:
+                        ret.append(bytes(i, self.output_encoding))
+
+                    else:
+                        raise ValueError(
+                            "if list is returned it bust contain strs or bytes"
+                            )
+            elif hasattr(res, '__iter__'):
+                if not callable(res):
+                    raise ValueError("invalid iterator returned")
+
+                if hasattr(res, 'stop'):
+                    if not callable(getattr(res, 'stop')):
+                        raise Exception(
+                            "returned iteratable has invalid 'stop' method"
+                            )
+
+                ret = CarafeIterableIterator(res_iter, self.output_encoding)
+
+            else:
+                raise TypeError("some invalid data type returned")
 
         return ret
