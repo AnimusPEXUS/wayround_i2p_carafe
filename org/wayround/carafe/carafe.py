@@ -6,6 +6,125 @@ module. So I writed this module
 """
 
 import logging
+import urllib.parse
+
+import org.wayround.utils.path
+
+
+class _EnvironWSGIHandler:
+
+    def __init__(self, environ_handler):
+        if not isinstance(environ_handler, EnvironHandler):
+            raise TypeError("invalid type")
+        self._environ_handler = environ_handler
+        return
+
+    @property
+    def version(self):
+        return self._environ_handler['wsgi.version']
+
+    @property
+    def url_scheme(self):
+        return self._environ_handler['wsgi.url_scheme']
+
+    @property
+    def input(self):
+        return self._environ_handler['wsgi.input']
+
+    @property
+    def errors(self):
+        return self._environ_handler['wsgi.errors']
+
+    @property
+    def multithread(self):
+        return self._environ_handler['wsgi.multithread']
+
+    @property
+    def multiprocess(self):
+        return self._environ_handler['wsgi.multiprocess']
+
+    @property
+    def run_once(self):
+        return self._environ_handler['wsgi.run_once']
+
+
+class EnvironHandler:
+
+    def __init__(self, environ, encoding='utf-8'):
+        if not isinstance(environ, dict):
+            raise TypeError("`environ' must be dict")
+        self._environ = environ
+        self._encoding = encoding
+        self.wsgi = _EnvironWSGIHandler(self)
+        return
+
+    def get_original(self):
+        return self._environ
+
+    def __getitem__(self, key):
+        self._environ.get(name, None)
+
+    def __len__(self):
+        return len(self._environ)
+
+    def __repr__(self):
+        return repr(self._environ)
+
+    def __str__(self):
+        return str(self._environ)
+
+    @property
+    def request_method(self):
+        return self['REQUEST_METHOD']
+
+    @property
+    def script_name(self):
+        return self['SCRIPT_NAME']
+
+    @property
+    def path_info(self):
+        return self['PATH_INFO']
+
+    def get_path_info_splitted(self):
+        return org.wayround.utils.path.split(self.path_info)
+
+    @property
+    def query_string(self):
+        return self['QUERY_STRING']
+
+    def parse_qs(self, *args, **kwargs):
+        return urllib.parse.parse_qs(
+            self.query_string,
+            *args,
+            **kwargs
+            )
+
+    def parse_qsl(self, *args, **kwargs):
+        return urllib.parse.parse_qsl(
+            self.query_string,
+            *args,
+            **kwargs
+            )
+
+    @property
+    def content_type(self):
+        return self['CONTENT_TYPE']
+
+    @property
+    def content_length(self):
+        return self['CONTENT_LENGTH']
+
+    @property
+    def server_name(self):
+        return self['SERVER_NAME']
+
+    @property
+    def server_port(self):
+        return self['SERVER_PORT']
+
+    @property
+    def server_protocol(self):
+        return self['SERVER_PROTOCOL']
 
 
 class CarafeIterableIterator:
@@ -91,9 +210,11 @@ class Carafe:
         carafe_app - must be callable which has
             (wsgi_environment, response_start) parameters.
 
-            wsgi_environment - is passed strictly from wsgi server.
-                You can use helpers in this module to
-                simplify wsgi_environment handling.
+            wsgi_environment - is wrapped with EnvironHandler class, which does
+                not do any changes to dictionary, but only provides handy
+                attributes. moreover EnvironHandler behaves like a mapping
+                object. original dict is returned with get_original() method if
+                needed.
 
             response_start - is wrapped with special class, which, when called,
                 raises exception as deprecation mesure
