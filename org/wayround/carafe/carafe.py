@@ -6,9 +6,209 @@ module. So I writed this module
 """
 
 import logging
+import fnmatch
 import urllib.parse
+import copy
 
 import org.wayround.utils.path
+import org.wayround.http.message
+
+
+class Route:
+
+    """
+    path_settings:
+        must be list of 3-tuples. those tuple values have folloving meanings:
+            0 - path segment matching method: 're', 'fm', True
+                if this == True, this Route (first one found with True) will
+                    supercide all other Routes for current path segment.
+            1 - pattern. for True this value is not used.
+                    if 0 == 'fm', this value simply a string - file mask
+                    if 0 == 're', this value must be compiled regexp, or
+                        string which will be compiled into regexp
+            2 - name. name frough which resolved value will be available for
+                target. None - if this availability isn't needed
+
+    method: can be any str or list of strs
+        None - disables matching
+        True - any method accepted
+
+    target - must be callable, which accepts folloving parameters:
+        wsgi_environment, response_start - just passed from wsgi server
+        route_result - dict (which can be empty) with keys corresponding
+            to 2 values in path_settings
+    """
+
+    def __init__(
+            self,
+            method,
+            path_settings,
+            target
+            ):
+
+        if not callable(target):
+            raise TypeError("`target' must be callable")
+
+        self.target = target
+
+        if type(method) != list:
+            method = [method]
+
+        for i in method:
+            if type(i) != str:
+                raise ValueError(
+                    "invalid value of `method'"
+                    )
+
+        for i in range(len(method)):
+            method[i] = method[i].strip().upper()
+
+        self.method = method
+
+        if path_settings is None:
+            path_settings = [(True, None, 'path')]
+
+        for i in path_settings:
+            if not i[0] in ['re', 'fm', True]:
+                raise ValueError(
+                    "invalid segment match method: {}".format(i[0])
+                    )
+
+        for i in range(len(path_settings) - 1, -1 - 1):
+            ii = path_settings[i]
+
+            if ii[0] == 're':
+                if type(ii[1]) == str:
+
+                    i2 = (ii[0], re.compile(ii[1]), ii[2])
+
+                    path_settings[i] = i2
+
+        self.path_settings = path_settings
+
+        # TODO: find way to check all `re' values are compiled
+
+        return
+
+
+class Router:
+
+    def __init__(self, default_target):
+        """
+        default_target is same as target in Route class
+        """
+        if not callable(default_target):
+            raise TypeError("`default_target' must be callable")
+        self.routes = []
+        self.default_target = default_target
+        return
+
+    def add(self, method, path_settings, target):
+        """
+        Simply creates Route and appends it to self.routes
+
+        read Route class docs for parameters meaning
+        """
+        self.routes.append(Route(method, path_settings, target))
+        return
+
+    def wsgi_server_target(self, wsgi_environment, response_start):
+        """
+        Searches route in self.routes and passes found target wsgi_environment,
+        response_start and route_result. explanation for route_result is in
+        Route class.
+
+        result from ranning this method is simply passed from target to carafe
+        calling fuctionality. see Carafe class for explanations to this.
+        """
+        route_result = {}
+
+        if wsgi_environment['PATH_INFO'] == '/':
+            splitted_path_info = []
+        else:
+            splitted_path_info = wsgi_environment['PATH_INFO'].split('/')
+
+        target = self.default_target
+
+        path_segment_to_check_position = 0
+
+        filter_result = copy.copy(self.routes)
+
+        for i in range(len(splitted_path_info)):
+
+            if len(filter_result) == 0:
+                break
+
+            filter_result = _filter_routes_by_segment(
+                splitted_path_info[i],
+                filter_result,
+                i
+                )
+            if (len(filter_result) == 1
+                and
+                filter_result[0].path_settings[i][0] == True
+                ):
+                break
+
+        if len(filter_result) != 0:
+            target = filter_result[0].target
+
+        if target is None:
+            target = self.default_target
+
+        return target(wsgi_environment, response_start, route_result)
+
+
+def _filter_routes_by_segment(
+        actual_segment_value,
+        routes_lst,
+        routes_segment_index
+        ):
+
+    ret = []
+
+    for i in routes_lst:
+        ret.append(i)
+
+    for i in range(len(ret) - 1, -1, -1):
+        ii = ret[i]
+
+        if routes_segment_index >= len(ii.path_settings) - 1:
+            del ret[i]
+
+    true_path_found_atonce = False
+    for i in ret:
+        if i.path_settings[routes_segment_index][0] == True:
+            true_path_found_atonce = True
+            ret = [i]
+            break
+
+    if not true_path_found_atonce:
+
+        for i in range(len(ret) - 1, -1, -1):
+            ii = ret[i]
+
+            match = False
+            meth = ii.path_settings[routes_segment_index][0]
+            if meth == 're':
+                if ii.path_settings[routes_segment_index][1].match(
+                        actual_segment_value
+                        ):
+                    match = True
+            elif meth == 'fm':
+
+                if fnmatch.fnmatch(
+                        actual_segment_value,
+                        ii.path_settings[routes_segment_index][1]
+                        ):
+                    match = True
+            else:
+                pass
+
+            if not match:
+                del ret[i]
+
+    return ret
 
 
 class _EnvironWSGIHandler:
@@ -175,6 +375,14 @@ class ResponseStartWrapper:
     Wrapper for response_start function provided by WSGI server
 
     It transparantly converts strs to bytes
+
+    This callable wrapper is mimics standard WSGI response_start callable,
+    but adds some incompatible things:
+        * status (in distinct to WSGI, where it must be str with code and
+          reason) can be just int or string with code but without reason.
+          in such a case, the reason is taken from Python standard
+          http.client.responses dictionary
+
     """
 
     def __init__(self, response_start, output_encoding='utf-8'):
@@ -183,8 +391,36 @@ class ResponseStartWrapper:
         return
 
     def __call__(self, status, response_headers, exc_info=None):
+
+        if type(status) == int:
+            status = str(status)
+
+        status_code = None
+        status_reason = None
+
+        status_splitted = status.strip().split(' ')
+
+        status_splitted_l = len(status_splitted)
+
+        if status_splitted_l not in range(1, 3):
+            raise ValueError("Invalid `status' value")
+
+        status_code = int(status_splitted[0])
+
+        if status_splitted_l > 1:
+            status_reason = status_splitted[1]
+
+        status_format_res = org.wayround.http.message.format_status(
+            status_code,
+            status_reason
+            )
+
         return ResponseStartResultWrapper(
-            self._response_start(status, response_headers, exc_info),
+            self._response_start(
+                status_format_res,
+                response_headers,
+                exc_info
+                ),
             self._output_encoding
             )
 
@@ -227,7 +463,7 @@ class Carafe:
         self.output_encoding = output_encoding
         return
 
-    def __call__(self, wsgi_environment, response_start):
+    def target_for_wsgi_server(self, wsgi_environment, response_start):
 
         ret = None
 
