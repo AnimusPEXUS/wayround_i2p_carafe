@@ -30,8 +30,8 @@ class Route:
                 target. None - if this availability isn't needed
 
     method: can be any str or list of strs
-        None - disables matching
-        True - any method accepted
+        None or False - disables matching
+        True          - any method accepted
 
     target - must be callable, which accepts folloving parameters:
         wsgi_environment, response_start - just passed from wsgi server
@@ -90,6 +90,12 @@ class Route:
 
         return
 
+    def __repr__(self):
+        ret = []
+        for i in self.path_settings:
+            ret.append((i[0], i[1]))
+        return repr(ret)
+
 
 class Router:
 
@@ -121,40 +127,84 @@ class Router:
         result from ranning this method is simply passed from target to carafe
         calling fuctionality. see Carafe class for explanations to this.
         """
+
         route_result = {}
 
-        if wsgi_environment['PATH_INFO'] == '/':
+        request_method = wsgi_environment['REQUEST_METHOD']
+
+        path_info = wsgi_environment['PATH_INFO']
+        if path_info.startswith('/'):
+            path_info = path_info[1:]
+
+        if path_info in ['/', '']:
             splitted_path_info = []
         else:
-            splitted_path_info = wsgi_environment['PATH_INFO'].split('/')
+            splitted_path_info = path_info.split('/')
+
+        # print("splitted_path_info == {}".format(splitted_path_info))
 
         target = self.default_target
 
-        path_segment_to_check_position = 0
+        routing_error = False
 
-        filter_result = copy.copy(self.routes)
+        if len(splitted_path_info) != 0 and len(self.routes) != 0:
 
-        for i in range(len(splitted_path_info)):
+            path_segment_to_check_position = 0
 
-            if len(filter_result) == 0:
-                break
+            filter_result = copy.copy(self.routes)
 
-            filter_result = _filter_routes_by_segment(
-                splitted_path_info[i],
-                filter_result,
-                i
+            # filter by method
+            for i in range(len(filter_result) - 1, -1, -1):
+                if ((i.method in [None, False])
+                        or
+                        (i.method != True and not request_method in i.method)):
+
+                    del filter_result[i]
+
+            # filter by path settings
+            for i in range(len(splitted_path_info)):
+
+                if len(filter_result) == 0:
+                    break
+
+                filter_result = _filter_routes_by_segment(
+                    splitted_path_info[i],
+                    filter_result,
+                    i
+                    )
+
+            selected_route = None
+
+            filter_result_l = len(filter_result)
+
+            if filter_result_l == 0:
+                routing_error = True
+                logging.error("route not found")
+
+            elif filter_result_l == 1:
+                selected_route = filter_result[0]
+
+            else:
+                routing_error = True
+                logging.error("can't find matching route")
+
+            if selected_route is not None:
+                target = selected_route.target
+
+        if routing_error:
+            logging.error(
+                "routing error\n"
+                "asked route is: {}\n"
+                "starting  route list is: {}\n"
+                "resulting route list is: {}".format(
+                    wsgi_environment['PATH_INFO'],
+                    self.routes,
+                    filter_result
+                    )
                 )
-            if (len(filter_result) == 1
-                and
-                filter_result[0].path_settings[i][0] == True
-                ):
-                break
 
-        if len(filter_result) != 0:
-            target = filter_result[0].target
-
-        if target is None:
-            target = self.default_target
+        if len(self.routes) == 0:
+            logging.warning("routes is not specified")
 
         return target(wsgi_environment, response_start, route_result)
 
@@ -165,15 +215,24 @@ def _filter_routes_by_segment(
         routes_segment_index
         ):
 
-    ret = []
+    print("""
+_filter_routes_by_segment(
+    {},
+    {},
+    {}
+    )""".format(
+        actual_segment_value,
+        routes_lst,
+        routes_segment_index
+        )
+        )
 
-    for i in routes_lst:
-        ret.append(i)
+    ret = copy.copy(routes_lst)
 
     for i in range(len(ret) - 1, -1, -1):
         ii = ret[i]
 
-        if routes_segment_index >= len(ii.path_settings) - 1:
+        if routes_segment_index > len(ii.path_settings) - 1:
             del ret[i]
 
     true_path_found_atonce = False
@@ -196,14 +255,15 @@ def _filter_routes_by_segment(
                         ):
                     match = True
             elif meth == 'fm':
-
                 if fnmatch.fnmatch(
                         actual_segment_value,
                         ii.path_settings[routes_segment_index][1]
                         ):
                     match = True
+            elif meth == True:
+                match = True
             else:
-                pass
+                raise Exception("programming error: invalid method value")
 
             if not match:
                 del ret[i]
