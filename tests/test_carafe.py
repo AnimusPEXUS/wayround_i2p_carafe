@@ -50,6 +50,14 @@ class TestCarafeApp:
                 ],
             self.index2_with_path
             )
+        self.router.add(
+            'GET',
+            [
+                ('fm', 'index3', None),
+                ('path', None, 'path')
+                ],
+            self.index2_with_path_html
+            )
 
         return
 
@@ -97,6 +105,15 @@ class TestCarafeApp:
         return a(wsgi_environment, response_start,
                  'index2_with_path', route_result)
 
+    def index2_with_path_html(
+            self,
+            wsgi_environment,
+            response_start,
+            route_result
+            ):
+        return b(wsgi_environment, response_start,
+                 'index2_with_path_html', route_result)
+
     def index_and_digits(
             self,
             wsgi_environment,
@@ -111,7 +128,7 @@ def a(e, s, name, route_result):
 
     s(
         '200',
-        [('Content-Type', 'text/plain;charset=UTF8')]
+        [('Content-Type', 'text/plain; charset=UTF-8')]
         )
 
     res = """\
@@ -136,6 +153,41 @@ route_result:
 
     return [bytes(res, 'utf-8')]
 
-b = TestCarafeApp()
-b.start()
-b.wait()
+
+def b(e, s, name, route_result):
+
+    s(
+        '200',
+        [('Content-Type', 'text/html; charset=UTF-8')]
+        )
+
+    res = """\
+<html>
+<head><title>123</title></head>
+<body>
+name: {}
+e:
+{}
+pi:
+{}
+qs:
+{}
+route_result:
+{}
+</body>
+</html>
+""".format(
+        name,
+        pprint.pformat(e),
+        urllib.parse.unquote(e['PATH_INFO']),
+        urllib.parse.parse_qs(urllib.parse.unquote(e['QUERY_STRING'])),
+        route_result
+        )
+
+    print(res)
+
+    return [bytes(res, 'utf-8')]
+
+c = TestCarafeApp()
+c.start()
+c.wait()

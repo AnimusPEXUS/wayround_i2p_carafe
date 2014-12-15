@@ -165,8 +165,6 @@ class Router:
         else:
             splitted_path_info = path_info.split('/')
 
-        # print("splitted_path_info == {}".format(splitted_path_info))
-
         target = self.default_target
 
         routing_error = False
@@ -203,6 +201,11 @@ class Router:
                         and filter_result[0].path_settings[i][0] == 'path'):
                     break
 
+            for i in range(len(filter_result) - 1, -1, -1):
+                if (len(filter_result[i].path_settings) >
+                        len(splitted_path_info)):
+                    del filter_result[i]
+
             selected_route = None
 
             filter_result_l = len(filter_result)
@@ -219,7 +222,9 @@ class Router:
                 logging.error("can't find matching route")
 
             if selected_route is not None:
+
                 target = selected_route.target
+
                 for i in range(len(selected_route.path_settings)):
 
                     selected_route_path_settings_i = \
@@ -230,18 +235,24 @@ class Router:
                         selected_route_path_settings_i_0 = \
                             selected_route_path_settings_i[0]
 
+                        selected_route_path_settings_i_2 = \
+                            selected_route_path_settings_i[2]
+
                         if selected_route_path_settings_i_0 == 'path':
-                            route_result[selected_route_path_settings_i[2]] = \
+                            route_result[selected_route_path_settings_i_2] = \
                                 splitted_path_info[i:]
                             break
+
                         elif selected_route_path_settings_i_0 == 'rer':
-                            route_result[selected_route_path_settings_i[2]] = \
+                            route_result[selected_route_path_settings_i_2] = \
                                 selected_route.path_settings[i].match(
                                     splitted_path_info[i]
                                     )
+
                         elif selected_route_path_settings_i_0 in ['fm', 're']:
-                            route_result[selected_route_path_settings_i[2]] = \
+                            route_result[selected_route_path_settings_i_2] = \
                                 splitted_path_info[i]
+
                         else:
                             raise Exception("programming error")
 
