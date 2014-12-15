@@ -5,6 +5,7 @@ I was mutch disapointed by BottlePy: Bottle class instances are nailed to
 module. So I writed this module
 """
 
+import re
 import logging
 import fnmatch
 import urllib.parse
@@ -19,13 +20,19 @@ class Route:
     """
     path_settings:
         must be list of 3-tuples. those tuple values have folloving meanings:
-            0 - path segment matching method: 're', 'fm', True
-                if this == True, this Route (first one found with True) will
+            0 - path segment matching method: 're', 'rer', 'fm', 'path'
+                if this == 'path', this Route (first one found with 'path') will
                     supercide all other Routes for current path segment.
-            1 - pattern. for True this value is not used.
+                    Also, if 2 != None, the value in route_result for this -
+                        will be list of strings (path splitted by '/').
+                        So if named route_result ends with '', it means
+                        what original request target path ends with slash
+            1 - pattern. for 0 == 'path' this value is not used.
                     if 0 == 'fm', this value simply a string - file mask
                     if 0 == 're', this value must be compiled regexp, or
-                        string which will be compiled into regexp
+                        string which will be compiled into regexp.
+                    0 == 'rer' is same as 0 == 're', but instead of string the
+                        regular expression result is returned in route_result.
             2 - name. name frough which resolved value will be available for
                 target. None - if this availability isn't needed
 
@@ -66,23 +73,33 @@ class Route:
         self.method = method
 
         if path_settings is None:
-            path_settings = [(True, None, 'path')]
+            path_settings = [('path', None, 'path')]
 
         for i in path_settings:
-            if not i[0] in ['re', 'fm', True]:
+            if len(i) != 3:
+                raise ValueError(
+                    "`path_settings' list tuples must have 3 values each"
+                    )
+
+        for i in path_settings:
+            if not i[0] in ['re', 'rer', 'fm', 'path']:
                 raise ValueError(
                     "invalid segment match method: {}".format(i[0])
                     )
 
-        for i in range(len(path_settings) - 1, -1 - 1):
-            ii = path_settings[i]
+        for i in range(len(path_settings) - 1, -1, -1):
+            path_settings_i = path_settings[i]
 
-            if ii[0] == 're':
-                if type(ii[1]) == str:
+            if (path_settings_i[0] in ['re', 'rer']
+                    and type(path_settings_i[1]) == str):
 
-                    i2 = (ii[0], re.compile(ii[1]), ii[2])
+                i2 = (
+                    path_settings_i[0],
+                    re.compile(path_settings_i[1]),
+                    path_settings_i[2]
+                    )
 
-                    path_settings[i] = i2
+                path_settings[i] = i2
 
         self.path_settings = path_settings
 
@@ -155,9 +172,11 @@ class Router:
 
             # filter by method
             for i in range(len(filter_result) - 1, -1, -1):
-                if ((i.method in [None, False])
+                filter_result_i = filter_result[i]
+                if ((filter_result_i.method in [None, False])
                         or
-                        (i.method != True and not request_method in i.method)):
+                        (filter_result_i.method != True
+                         and not request_method in filter_result_i.method)):
 
                     del filter_result[i]
 
@@ -172,6 +191,10 @@ class Router:
                     filter_result,
                     i
                     )
+
+                if (len(filter_result) == 1
+                        and filter_result[0].path_settings[i][0] == 'path'):
+                    break
 
             selected_route = None
 
@@ -190,13 +213,37 @@ class Router:
 
             if selected_route is not None:
                 target = selected_route.target
+                for i in range(len(selected_route.path_settings)):
+
+                    selected_route_path_settings_i = \
+                        selected_route.path_settings[i]
+
+                    if type(selected_route_path_settings_i[2]) == str:
+
+                        selected_route_path_settings_i_0 = \
+                            selected_route_path_settings_i[0]
+
+                        if selected_route_path_settings_i_0 == 'path':
+                            route_result[selected_route_path_settings_i[2]] = \
+                                splitted_path_info[i:]
+                            break
+                        elif selected_route_path_settings_i_0 == 'rer':
+                            route_result[selected_route_path_settings_i[2]] = \
+                                selected_route.path_settings[i].match(
+                                    splitted_path_info[i]
+                                    )
+                        elif selected_route_path_settings_i_0 in ['fm', 're']:
+                            route_result[selected_route_path_settings_i[2]] = \
+                                splitted_path_info[i]
+                        else:
+                            raise Exception("programming error")
 
         if routing_error:
             logging.error(
                 "routing error\n"
-                "asked route is: {}\n"
-                "starting  route list is: {}\n"
-                "resulting route list is: {}".format(
+                "   asked route is: {}\n"
+                "   starting  route list is: {}\n"
+                "   resulting route list is: {}".format(
                     wsgi_environment['PATH_INFO'],
                     self.routes,
                     filter_result
@@ -215,34 +262,26 @@ def _filter_routes_by_segment(
         routes_segment_index
         ):
 
-    print("""
-_filter_routes_by_segment(
-    {},
-    {},
-    {}
-    )""".format(
-        actual_segment_value,
-        routes_lst,
-        routes_segment_index
-        )
-        )
-
     ret = copy.copy(routes_lst)
-
-    for i in range(len(ret) - 1, -1, -1):
-        ii = ret[i]
-
-        if routes_segment_index > len(ii.path_settings) - 1:
-            del ret[i]
 
     true_path_found_atonce = False
     for i in ret:
-        if i.path_settings[routes_segment_index][0] == True:
+
+        if routes_segment_index > len(i.path_settings) - 1:
+            continue
+
+        if i.path_settings[routes_segment_index][0] == 'path':
             true_path_found_atonce = True
             ret = [i]
             break
 
     if not true_path_found_atonce:
+
+        for i in range(len(ret) - 1, -1, -1):
+            ii = ret[i]
+
+            if routes_segment_index > len(ii.path_settings) - 1:
+                del ret[i]
 
         for i in range(len(ret) - 1, -1, -1):
             ii = ret[i]
@@ -260,7 +299,7 @@ _filter_routes_by_segment(
                         ii.path_settings[routes_segment_index][1]
                         ):
                     match = True
-            elif meth == True:
+            elif meth == 'path':
                 match = True
             else:
                 raise Exception("programming error: invalid method value")

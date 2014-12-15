@@ -21,8 +21,35 @@ class TestCarafeApp:
         self.router = \
             org.wayround.carafe.carafe.Router(self.default_router_target)
 
-        self.router.add('GET', [('fm', 'index')], self.index)
-        self.router.add('GET', [('fm', 'index2')], self.index2)
+        self.router.add(
+            'GET',
+            [
+                ('fm', 'index', None),
+                ('re', r'\d+', 'digits')],
+            self.index_and_digits
+            )
+        self.router.add(
+            'GET',
+            [
+                ('fm', 'index', None)
+                ],
+            self.index
+            )
+        self.router.add(
+            'GET',
+            [
+                ('fm', 'index2', None)
+                ],
+            self.index2
+            )
+        self.router.add(
+            'GET',
+            [
+                ('fm', 'index2', None),
+                ('path', None, 'path')
+                ],
+            self.index2_with_path
+            )
 
         return
 
@@ -43,7 +70,7 @@ class TestCarafeApp:
             response_start,
             route_result
             ):
-        return a(wsgi_environment, response_start, 'default')
+        return a(wsgi_environment, response_start, 'default', route_result)
 
     def index(
             self,
@@ -51,7 +78,7 @@ class TestCarafeApp:
             response_start,
             route_result
             ):
-        return a(wsgi_environment, response_start, 'index')
+        return a(wsgi_environment, response_start, 'index', route_result)
 
     def index2(
             self,
@@ -59,10 +86,28 @@ class TestCarafeApp:
             response_start,
             route_result
             ):
-        return a(wsgi_environment, response_start, 'index2')
+        return a(wsgi_environment, response_start, 'index2', route_result)
+
+    def index2_with_path(
+            self,
+            wsgi_environment,
+            response_start,
+            route_result
+            ):
+        return a(wsgi_environment, response_start,
+                 'index2_with_path', route_result)
+
+    def index_and_digits(
+            self,
+            wsgi_environment,
+            response_start,
+            route_result
+            ):
+        return a(wsgi_environment, response_start,
+                 'index_and_digits', route_result)
 
 
-def a(e, s, name):
+def a(e, s, name, route_result):
 
     s(
         '200',
@@ -77,11 +122,14 @@ pi:
 {}
 qs:
 {}
+route_result:
+{}
 """.format(
         name,
         pprint.pformat(e),
         urllib.parse.unquote(e['PATH_INFO']),
-        urllib.parse.parse_qs(urllib.parse.unquote(e['QUERY_STRING']))
+        urllib.parse.parse_qs(urllib.parse.unquote(e['QUERY_STRING'])),
+        route_result
         )
 
     print(res)
