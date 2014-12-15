@@ -75,11 +75,18 @@ class Route:
         if path_settings is None:
             path_settings = [('path', None, 'path')]
 
-        for i in path_settings:
-            if len(i) != 3:
+        for ii in range(len(path_settings)):
+            i = path_settings[ii]
+
+            len_i = len(i)
+
+            if len_i not in range(2, 4):
                 raise ValueError(
-                    "`path_settings' list tuples must have 3 values each"
+                    "`path_settings' list tuples must have 2-3 values each"
                     )
+
+            if len_i == 2:
+                path_settings[ii] = (i[0], i[1], None)
 
         for i in path_settings:
             if not i[0] in ['re', 'rer', 'fm', 'path']:
