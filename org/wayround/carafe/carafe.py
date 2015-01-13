@@ -14,6 +14,8 @@ import copy
 import org.wayround.utils.path
 import org.wayround.http.message
 
+MIME_TEXT = 'text/plain;codepage=UTF-8'
+
 
 class Route:
 
@@ -121,16 +123,29 @@ class Route:
         return repr(ret)
 
 
+def uq(value):
+    return urllib.parse.unquote(value)
+
+
 class Router:
 
-    def __init__(self, default_target):
+    def __init__(
+            self,
+            default_target,
+            unquote_callable=uq
+            ):
         """
         default_target is same as target in Route class
+
+        by default Router uses uq() function to unquote path segments
+        arrived in wsgi_environment['PATH_INFO'] value. you can use 
+        unquote_callable parameter to override this.
         """
         if not callable(default_target):
             raise TypeError("`default_target' must be callable")
         self.routes = []
         self.default_target = default_target
+        self.unquote_callable = unquote_callable
         return
 
     def add(self, method, path_settings, target):
@@ -165,11 +180,17 @@ class Router:
         else:
             splitted_path_info = path_info.split('/')
 
+        for i in range(len(splitted_path_info)):
+            splitted_path_info[i] = self.unquote_callable(
+                splitted_path_info[i]
+                )
+
         target = self.default_target
 
         routing_error = False
 
-        if len(splitted_path_info) != 0 and len(self.routes) != 0:
+        # if len(splitted_path_info) != 0 and len(self.routes) != 0:
+        if len(self.routes) != 0:
 
             path_segment_to_check_position = 0
 
@@ -279,6 +300,21 @@ def _filter_routes_by_segment(
         routes_lst,
         routes_segment_index
         ):
+
+    _debug = True
+
+    if _debug:
+        print("""
+_filter_routes_by_segment(
+    {},
+    {},
+    {}
+    )""".format(
+            actual_segment_value,
+            routes_lst,
+            routes_segment_index
+            )
+        )
 
     ret = copy.copy(routes_lst)
 
@@ -507,7 +543,10 @@ class ResponseStartWrapper:
         self._output_encoding = output_encoding
         return
 
-    def __call__(self, status, response_headers, exc_info=None):
+    def __call__(self, status, response_headers=None, exc_info=None):
+
+        if response_headers is None:
+            response_headers = [('Content-Type', MIME_TEXT)]
 
         if type(status) == int:
             status = str(status)
@@ -596,6 +635,9 @@ class Carafe:
             ret = [b'Internal Server Error']
             logging.exception("Error calling `{}'".format(self.carafe_app))
         else:
+
+            if res is None:
+                res = []
 
             res_t = type(res)
 
