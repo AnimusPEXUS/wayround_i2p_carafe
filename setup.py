@@ -3,14 +3,14 @@
 from setuptools import setup
 
 setup(
-    name='org_wayround_carafe',
-    version='0.1',
+    name='wayround_org_carafe',
+    version='0.3',
     description='micro web-framefork for wsgi',
     author='Alexey Gorshkov',
     author_email='animus@wayround.org',
-    url='https://github.com/AnimusPEXUS/org_wayround_carafe',
+    url='https://github.com/AnimusPEXUS/wayround_org_carafe',
     packages=[
-        'org.wayround.carafe'
+        'wayround_org.carafe'
         ],
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)'

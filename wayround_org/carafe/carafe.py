@@ -11,8 +11,8 @@ import fnmatch
 import urllib.parse
 import copy
 
-import org.wayround.utils.path
-import org.wayround.http.message
+import wayround_org.utils.path
+import wayround_org.http.message
 
 MIME_TEXT = 'text/plain;codepage=UTF-8'
 
@@ -439,7 +439,7 @@ class EnvironHandler:
         return self['PATH_INFO']
 
     def get_path_info_splitted(self):
-        return org.wayround.utils.path.split(self.path_info)
+        return wayround_org.utils.path.split(self.path_info)
 
     @property
     def query_string(self):
@@ -566,7 +566,7 @@ class ResponseStartWrapper:
         if status_splitted_l > 1:
             status_reason = status_splitted[1]
 
-        status_format_res = org.wayround.http.message.format_status(
+        status_format_res = wayround_org.http.message.format_status(
             status_code,
             status_reason
             )
