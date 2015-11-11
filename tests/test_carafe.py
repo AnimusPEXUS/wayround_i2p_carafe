@@ -2,8 +2,8 @@
 import pprint
 import urllib.parse
 
-import org.wayround.carafe.carafe
-import org.wayround.wsgi.server
+import wayround_org.carafe.carafe
+import wayround_org.wsgi.server
 
 
 class TestCarafeApp:
@@ -11,15 +11,15 @@ class TestCarafeApp:
     def __init__(self):
 
         self.carafe_app = \
-            org.wayround.carafe.carafe.Carafe(self.router_entry)
+            wayround_org.carafe.carafe.Carafe(self.router_entry)
 
         self.wsgi_server = \
-            org.wayround.wsgi.server.CompleteServer(
+            wayround_org.wsgi.server.CompleteServer(
                 self.carafe_app.target_for_wsgi_server
                 )
 
         self.router = \
-            org.wayround.carafe.carafe.Router(self.default_router_target)
+            wayround_org.carafe.carafe.Router(self.default_router_target)
 
         self.router.add(
             'GET',
