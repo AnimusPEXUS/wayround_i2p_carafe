@@ -22,41 +22,45 @@ MIME_HTML = 'text/html;codepage=UTF-8'
 
 class Route:
 
-    """
-    path_settings:
-        must be list of 3-tuples. those tuple values have folloving meanings:
-            0 - path segment matching method: '=', 're', 'rer', 'fm', 'path'
-                if this == 'path', this Route (first one found with 'path') will
-                    supercide all other Routes for current path segment.
-                    Also, if 2 != None, the value in route_result for this -
-                        will be list of strings (path splitted by '/').
-                        So if named route_result ends with '', it means
-                        what original request target path ends with slash
-            1 - pattern. for 0 == 'path' this value is not used.
-                    if 0 == 'fm', this value simply a string - file mask
-                    if 0 == 're', this value must be compiled regexp, or
-                        string which will be compiled into regexp.
-                    0 == 'rer' is same as 0 == 're', but instead of string the
-                        regular expression result is returned in route_result.
-            2 - name. name frough which resolved value will be available for
-                target. None - if this availability isn't needed
-
-    method: can be any str or list of strs
-        None or False - disables matching
-        True          - any method accepted
-
-    target - must be callable, which accepts folloving parameters:
-        wsgi_environment, response_start - just passed from wsgi server
-        route_result - dict (which can be empty) with keys corresponding
-            to 2 values in path_settings
-    """
-
     def __init__(
             self,
             method,
             path_settings,
             target
             ):
+        """
+        path_settings:
+            must be list of 3-tuples. those tuple values have folloving
+            meanings:
+                0 - path segment matching method: '=', 're', 'rer', 'fm',
+                    'path'
+                    if this == 'path', this Route (first one found with 'path')
+                        will supercide all other Routes for current path
+                        segment.
+                        Also, if 2 != None, the value in route_result for
+                            this - will be list of strings (path splitted by
+                            '/'). So if named route_result ends with '', it
+                            means what original request target path ends with
+                            slash
+                1 - pattern. for 0 == 'path' this value is not used.
+                        if 0 == 'fm', this value simply a string - file mask
+                        if 0 == 're', this value must be compiled regexp, or
+                            string which will be compiled into regexp.
+                        0 == 'rer' is same as 0 == 're', but instead of string
+                            the regular expression result is returned in
+                            route_result.
+                2 - name. name frough which resolved value will be available
+                    for target. None - if this availability isn't needed
+
+        method: can be any str or list of strs
+            None or False - disables matching
+            True          - any method accepted
+
+        target - must be callable, which accepts folloving parameters:
+            wsgi_environment, response_start - just passed from wsgi server
+            route_result - dict (which can be empty) with keys corresponding
+                to 2 values in path_settings
+        """
 
         if not callable(target):
             raise TypeError("`target' must be callable")
