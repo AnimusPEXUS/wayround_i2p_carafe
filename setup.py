@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='wayround_org_carafe',
-    version='0.3.2',
+    version='0.3.2.1',
     description='micro web-framefork for wsgi',
     author='Alexey Gorshkov',
     author_email='animus@wayround.org',
