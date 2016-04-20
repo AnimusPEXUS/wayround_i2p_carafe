@@ -5,12 +5,15 @@ I was mutch disapointed by BottlePy: Bottle class instances are nailed to
 module. So I writed this module
 """
 
+import pprint
 import re
 import logging
 import fnmatch
 import urllib.parse
 import copy
 import mimetypes
+import os.path
+import time
 
 import wayround_org.utils.path
 
@@ -142,7 +145,8 @@ class Router:
     def __init__(
             self,
             default_target,
-            unquote_callable=uq
+            unquote_callable=uq,
+            PATH_INFO_mode='std'
             ):
         """
         default_target is same as target in Route class
@@ -150,9 +154,22 @@ class Router:
         by default Router uses uq() function to unquote path segments
         arrived in wsgi_environment['PATH_INFO'] value. you can use
         unquote_callable parameter to override this.
+
+        PATH_INFO_mode parameters is used to switch behavior of PATH_INFO
+        treatment. Please, read https://bugs.python.org/issue16679: by
+        pep-3333 standard, though it's type is str, it's contents is
+        latin-1 and requires additional encoding as latin1 and decoding as
+        utf-8. 'std' value here is for standard behavior, and 'unicode' -
+        means PATH_INFO value is already unicode string
         """
+
+        if PATH_INFO_mode not in ['std', 'unicode']:
+            ValueError("invalid value to `PATH_INFO_mode'")
+
         if not callable(default_target):
             raise TypeError("`default_target' must be callable")
+
+        self.PATH_INFO_mode = PATH_INFO_mode
         self.routes = []
         self.default_target = default_target
         self.unquote_callable = unquote_callable
@@ -188,6 +205,11 @@ class Router:
         request_method = wsgi_environment['REQUEST_METHOD']
 
         path_info = wsgi_environment['PATH_INFO']
+
+        if self.PATH_INFO_mode == 'std':
+            path_info = path_info.encode('latin1').decode('utf-8')
+            wsgi_environment['PATH_INFO'] = path_info
+
         if path_info.startswith('/'):
             path_info = path_info[1:]
 
@@ -309,17 +331,14 @@ class Router:
                 "   asked route is: {}\n"
                 "   starting  route list is: {}\n"
                 "   resulting route list is: {}".format(
-                    wsgi_environment['PATH_INFO'],
+                    path_info,
                     self.routes,
                     filter_result
                     )
                 )
 
         if len(self.routes) == 0:
-            logging.warning("routes is not specified")
-
-        if len(self.routes) == 0:
-            logging.warning("routes is not specified")
+            logging.warning("routes not specified")
 
         return target(wsgi_environment, response_start, route_result)
 
@@ -452,13 +471,20 @@ class EnvironHandler:
         return self._environ
 
     def __getitem__(self, key):
-        self._environ.get(name, None)
+        return self._environ.get(key, None)
+
+    def __setitem__(self, key, value):
+        if key not in ['PATH_INFO']:
+            raise KeyError("invalid key")
+
+        self._environ[key] = value
+        return
 
     def __len__(self):
         return len(self._environ)
 
     def __repr__(self):
-        return repr(self._environ)
+        return pprint.pformat(self._environ)
 
     def __str__(self):
         return str(self._environ)
@@ -474,6 +500,12 @@ class EnvironHandler:
     @property
     def path_info(self):
         return self['PATH_INFO']
+
+    @path_info.setter
+    def path_info(self, value):
+        # TODO: do we need value checks?
+        self._environ['PATH_INFO'] = value
+        return
 
     def get_path_info_splitted(self):
         return wayround_org.utils.path.split(self.path_info)
@@ -671,7 +703,7 @@ class Carafe:
 
         try:
             res = self.carafe_app(
-                wsgi_environment,
+                EnvironHandler(wsgi_environment, self.output_encoding),
                 ResponseStartWrapper(response_start)
                 )
 

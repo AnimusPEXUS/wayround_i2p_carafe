@@ -15,7 +15,8 @@ class TestCarafeApp:
 
         self.wsgi_server = \
             wayround_org.wsgi.server.CompleteServer(
-                self.carafe_app.target_for_wsgi_server
+                self.carafe_app.target_for_wsgi_server,
+                address=('127.0.0.1', 8005)
                 )
 
         self.router = \
