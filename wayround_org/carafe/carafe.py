@@ -52,7 +52,8 @@ class Route:
                         0 == 'rer' is same as 0 == 're', but instead of string
                             the regular expression result is returned in
                             route_result.
-                2 - name. name frough which resolved value will be available
+                2 - name (optional. default: None).
+                    name frough which resolved value will be available
                     for target. None - if this availability isn't needed
 
         method: can be any str or list of strs
@@ -122,7 +123,7 @@ class Route:
 
         self.path_settings = path_settings
 
-        # TODO: find way to check all `re' values are compiled
+        # TODO: find way to check what all `re' values are compiled
 
         return
 
@@ -188,6 +189,14 @@ class Router:
         """
         add() with reordered paameters
         """
+        return self.add(method, path_settings, target)
+
+    def add3(self, target, path_settings=None, method='GET'):
+        """
+        add() with reordered paameters
+        """
+        if path_settings is None:
+            path_settings = []
         return self.add(method, path_settings, target)
 
     def wsgi_server_target(self, wsgi_environment, response_start):

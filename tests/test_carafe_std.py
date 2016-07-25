@@ -2,6 +2,7 @@
 import pprint
 import urllib.parse
 import wsgiref.simple_server
+import http.cookies
 
 import wayround_org.carafe.carafe
 
@@ -134,9 +135,15 @@ class TestCarafeApp:
 
 def a(e, s, name, route_result):
 
+    m = http.cookies.Morsel()
+    m.set('TestCookie', 'TestCookie-Value')
+
     s(
         '200',
-        [('Content-Type', 'text/plain; charset=UTF-8')]
+        [
+            ('Content-Type', 'text/plain; charset=UTF-8'),
+            ('Set-Cookie', m.output(header='')[1:])
+            ]
         )
 
     res = """\
