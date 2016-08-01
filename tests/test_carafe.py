@@ -5,21 +5,20 @@ import wsgiref.simple_server
 
 import wayround_org.http.cookies
 import wayround_org.carafe.carafe
+import wayround_org.wsgi.server
 
 
 class TestCarafeApp:
 
-    def __init__(self):
+    def __init__(self, mode='wro'):
+        
+        if mode not in ['wro', 'std']:
+            raise ValueError('error')
+        
+        self.mode=mode
 
         self.carafe_app = \
             wayround_org.carafe.carafe.Carafe(self.router_entry)
-
-        '''
-        self.wsgi_server = \
-            wayround_org.wsgi.server.CompleteServer(
-                self.carafe_app.target_for_wsgi_server
-                )
-        '''
 
         self.router = \
             wayround_org.carafe.carafe.Router(self.default_router_target)
@@ -68,17 +67,27 @@ class TestCarafeApp:
         return self.router.wsgi_server_target(wsgi_environment, response_start)
 
     def start(self):
-        httpd = wsgiref.simple_server.make_server(
-            '127.0.0.1',
-            8005,
-            self.carafe_app.target_for_wsgi_server
-            )
-        httpd.serve_forever()
-        # self.wsgi_server.start()
+        if self.mode == 'wro':
+            self.wsgi_server = \
+                wayround_org.wsgi.server.CompleteServer(
+                    self.carafe_app.target_for_wsgi_server,
+                    address=('127.0.0.1', 8005)
+                    )
+            self.wsgi_server.start()
+        
+        elif self.mode == 'std':
+            httpd = wsgiref.simple_server.make_server(
+                '127.0.0.1',
+                8005,
+                self.carafe_app.target_for_wsgi_server
+                )
         return
 
     def wait(self):
-        # self.wsgi_server.wait()
+        if self.mode == 'wro':
+            self.wsgi_server.wait()
+        elif self.mode == 'std':
+            httpd.serve_forever()
         return
 
     def default_router_target(
@@ -135,7 +144,7 @@ class TestCarafeApp:
 
 def a(e, s, name, route_result):
 
-    m = wayround_org.http.cookies.Cookies()
+    m = wayround_org.http.cookies.CookiesYAML()
     m.add_from_tuple(('TestCookie', 'TestCookie-Value'))
 
     s(
@@ -202,6 +211,6 @@ route_result:
 
     return [bytes(res, 'utf-8')]
 
-c = TestCarafeApp()
+c = TestCarafeApp('wro')
 c.start()
 c.wait()
