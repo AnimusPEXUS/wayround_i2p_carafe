@@ -69,6 +69,9 @@ class Route:
         if not callable(target):
             raise TypeError("`target' must be callable")
 
+        if not isinstance(path_settings, list):
+            raise TypeError("`path_settings' must be list")
+
         self.target = target
 
         if type(method) != list:
@@ -90,6 +93,9 @@ class Route:
 
         for ii in range(len(path_settings)):
             i = path_settings[ii]
+
+            if not isinstance(i, tuple):
+                raise ValueError("`path_settings' values must be tuples")
 
             len_i = len(i)
 
