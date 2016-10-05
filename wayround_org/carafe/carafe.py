@@ -23,6 +23,10 @@ MIME_TEXT = 'text/plain;codepage=UTF-8'
 MIME_HTML = 'text/html;codepage=UTF-8'
 
 
+class HttpError(Exception):
+    pass
+
+
 class Route:
 
     def __init__(
@@ -495,6 +499,11 @@ class EnvironHandler:
         self._environ[key] = value
         return
 
+    def __delitem__(self, key):
+        raise Exception("del action should not be used with EnvironHandler")
+        del self._environ[key]
+        return
+
     def __len__(self):
         return len(self._environ)
 
@@ -503,6 +512,15 @@ class EnvironHandler:
 
     def __str__(self):
         return str(self._environ)
+
+    def __in__(self, key):
+        return key in self._environ
+
+    def __iter__(self):
+        return iter(self._environ)
+
+    def keys(self):
+        return self._environ.keys()
 
     @property
     def request_method(self):
@@ -573,11 +591,11 @@ class CarafeIterableIterator:
         return
 
     def __iter__(self):
-        for i in self._iterator.__iter__():
+        for i in iter(self._iterator()):
 
             if self._stop_flag:
                 if hasattr(self._iterator, 'stop'):
-                    getattr(self._iterator, 'stop')()
+                    self._iterator.stop()
                     break
 
             i_t = type(i)
@@ -585,10 +603,10 @@ class CarafeIterableIterator:
             i_r = None
 
             if i_t == bytes:
-                i_r = res
+                i_r = i
 
             elif i_t == str:
-                i_r = bytes(res, self.output_encoding)
+                i_r = bytes(i, self.output_encoding)
 
             else:
                 raise TypeError(
@@ -722,6 +740,9 @@ class Carafe:
                 ResponseStartWrapper(response_start)
                 )
 
+        except HttpError as e:
+            response_start(e.args[0])
+
         except Exception as e:
             # TODO: check status correctness
             response_start('500 Error', [], e)
@@ -755,7 +776,7 @@ class Carafe:
                             "if list is returned it bust contain strs or bytes"
                             )
             elif hasattr(res, '__iter__'):
-                if not callable(res):
+                if not callable(res.__iter__):
                     raise ValueError("invalid iterator returned")
 
                 if hasattr(res, 'stop'):
@@ -764,7 +785,8 @@ class Carafe:
                             "returned iteratable has invalid 'stop' method"
                             )
 
-                ret = CarafeIterableIterator(res_iter, self.output_encoding)
+                ret = CarafeIterableIterator(
+                    res.__iter__, self.output_encoding)
 
             else:
                 raise TypeError("some invalid data type returned")
@@ -772,141 +794,28 @@ class Carafe:
         return ret
 
 
-def static_file(
-        start_response_cb,
-        filename,
-        root,
-        mimetype='auto',
-        download=False,
-        charset='UTF-8'
-        ):
-    """
-    Note: this function is simply an adopted and fixed copy&paste from
-          bottle.py cause I'm too lazy to reinvent this wheel.
+class StaticFile:
 
-    Open a file in a safe way and return :exc:`HTTPResponse` with status
-    code 200, 305, 403 or 404. The ``Content-Type``, ``Content-Encoding``,
-    ``Content-Length`` and ``Last-Modified`` headers are set if possible.
-    Special support for ``If-Modified-Since``, ``Range`` and ``HEAD``
-    requests.
+    # TODO
 
-    :param filename: Name or path of the file to send.
-    :param root: Root path for file lookups. Should be an absolute directory
-        path.
-    :param mimetype: Defines the content-type header (default: guess from
-        file extension)
-    :param download: If True, ask the browser to open a `Save as...` dialog
-        instead of opening the file with the associated program. You can
-        specify a custom filename as a string. If not specified, the
-        original filename is used (default: False).
-    :param charset: The charset to use for files with a ``text/*``
-        mime-type. (default: UTF-8)
-    """
+    def __init__(self,
+                 wsgi_environment,
+                 response_start,
+                 route_result,
+                 filename,
+                 root,
+                 mimetype='auto',
+                 download=False,
+                 charset='UTF-8'
+                 ):
 
-    # TODO: this function coding is disaster. need to rewrite.
+        self.wsgi_environment = wsgi_environment
+        self.response_start = response_start
+        self.route_result = route_result
+        self.filename = filename
+        self.root = root
+        self.mimetype = mimetype
+        self.download = download
+        self.charset = charset
 
-    root = wayround_org.utils.path.realpath(root) + os.sep
-    filename = wayround_org.utils.path.realpath(
-        wayround_org.utils.path.join(
-            root,
-            filename
-            )
-        )
-
-    headers = dict()
-
-    if not filename.startswith(root):
-        return wayround_org.http.message.HTTPError(
-            403,
-            "Access denied"
-            )
-
-    if not os.path.exists(filename) or not os.path.isfile(filename):
-        return wayround_org.http.message.HTTPError(
-            404,
-            "File does not exist"
-            )
-
-    if not os.access(filename, os.R_OK):
-        return wayround_org.http.message.HTTPError(
-            403,
-            "You do not have permission to access this file"
-            )
-
-    if mimetype == 'auto':
-        mimetype, encoding = mimetypes.guess_type(filename)
-        if encoding:
-            headers['Content-Encoding'] = encoding
-
-    if mimetype:
-        if (
-                mimetype.startswith('text/')
-                and charset
-                and 'charset' not in mimetype
-                ):
-
-            mimetype += '; charset={}'.format(charset)
-
-        headers['Content-Type'] = mimetype
-
-    if download:
-        download = os.path.basename(filename if download == True else download)
-        headers['Content-Disposition'] = 'attachment; filename="{}"'.format(
-            download
-            )
-
-    stats = os.stat(filename)
-    headers['Content-Length'] = clen = stats.st_size
-    lm = time.strftime(
-        "%a, %d %b %Y %H:%M:%S GMT",
-        time.gmtime(
-            stats.st_mtime
-            )
-        )
-    headers['Last-Modified'] = lm
-
-    ims = request.environ.get('HTTP_IF_MODIFIED_SINCE')
-
-    if ims:
-        ims = parse_date(ims.split(";")[0].strip())
-
-    if ims is not None and ims >= int(stats.st_mtime):
-        headers['Date'] = time.strftime(
-            "%a, %d %b %Y %H:%M:%S GMT",
-            time.gmtime()
-            )
-        start_response_cb(304, headers)
-        return HTTPResponse(304, **headers)
-
-    body = '' if request.method == 'HEAD' else open(filename, 'rb')
-
-    headers["Accept-Ranges"] = "bytes"
-    ranges = request.environ.get('HTTP_RANGE')
-    if 'HTTP_RANGE' in request.environ:
-        ranges = list(
-            parse_range_header(
-                request.environ['HTTP_RANGE'],
-                clen
-                )
-            )
-
-        if not ranges:
-            return wayround_org.http.message.HTTPError(
-                416,
-                "Requested Range Not Satisfiable"
-                )
-
-        offset, end = ranges[0]
-        headers["Content-Range"] = "bytes %d-%d/%d" % (offset, end - 1, clen)
-        headers["Content-Length"] = str(end - offset)
-
-        if body:
-            body = _file_iter_range(body, offset, end - offset)
-
-        return wayround_org.http.message.HTTPResponse(
-            206,
-            headers,
-            body
-            )
-
-    return wayround_org.http.message.HTTPResponse(200, headers, body)
+        return
