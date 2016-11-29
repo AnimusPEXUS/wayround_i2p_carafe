@@ -15,9 +15,9 @@ import mimetypes
 import os.path
 import time
 
-import wayround_org.utils.path
+import wayround_i2p.utils.path
 
-import wayround_org.http.message
+import wayround_i2p.http.message
 
 MIME_TEXT = 'text/plain;codepage=UTF-8'
 MIME_HTML = 'text/html;codepage=UTF-8'
@@ -541,7 +541,7 @@ class EnvironHandler:
         return
 
     def get_path_info_splitted(self):
-        return wayround_org.utils.path.split(self.path_info)
+        return wayround_i2p.utils.path.split(self.path_info)
 
     @property
     def query_string(self):
@@ -677,7 +677,7 @@ class ResponseStartWrapper:
         if status_splitted_l > 1:
             status_reason = status_splitted[1]
 
-        status_format_res = wayround_org.http.message.format_status(
+        status_format_res = wayround_i2p.http.message.format_status(
             status_code,
             status_reason
             )

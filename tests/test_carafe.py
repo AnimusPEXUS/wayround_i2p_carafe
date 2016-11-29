@@ -3,9 +3,9 @@ import pprint
 import urllib.parse
 import wsgiref.simple_server
 
-import wayround_org.http.cookies
-import wayround_org.carafe.carafe
-import wayround_org.wsgi.server
+import wayround_i2p.http.cookies
+import wayround_i2p.carafe.carafe
+import wayround_i2p.wsgi.server
 
 
 class TestCarafeApp:
@@ -18,10 +18,10 @@ class TestCarafeApp:
         self.mode=mode
 
         self.carafe_app = \
-            wayround_org.carafe.carafe.Carafe(self.router_entry)
+            wayround_i2p.carafe.carafe.Carafe(self.router_entry)
 
         self.router = \
-            wayround_org.carafe.carafe.Router(self.default_router_target)
+            wayround_i2p.carafe.carafe.Router(self.default_router_target)
 
         self.router.add(
             'GET',
@@ -69,7 +69,7 @@ class TestCarafeApp:
     def start(self):
         if self.mode == 'wro':
             self.wsgi_server = \
-                wayround_org.wsgi.server.CompleteServer(
+                wayround_i2p.wsgi.server.CompleteServer(
                     self.carafe_app.target_for_wsgi_server,
                     address=('127.0.0.1', 8005)
                     )
@@ -144,7 +144,7 @@ class TestCarafeApp:
 
 def a(e, s, name, route_result):
 
-    m = wayround_org.http.cookies.CookiesYAML()
+    m = wayround_i2p.http.cookies.CookiesYAML()
     m.add_from_tuple(('TestCookie', 'TestCookie-Value'))
 
     s(
